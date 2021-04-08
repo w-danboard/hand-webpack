@@ -1,5 +1,6 @@
 const { Tapable, AsyncSeriesHook, SyncBailHook, AsyncParallelHook, SyncHook } = require('tapable');
 const NormalModuleFactory = require('./NormalModuleFactory');
+const Compilation = require('./Compilation');
 // 编译器对象
 class Compiler extends Tapable {
   constructor (context) {
@@ -48,7 +49,9 @@ class Compiler extends Tapable {
     const params = this.newCompilationParams();
     this.hooks.beforeCompile.callAsync(params, err => {
       this.hooks.compile.call(params);
+      // 创建一个新的compilation对象
       const compilation = this.newCompilation(params);
+      // 触发make钩子的回调函数执行
       this.hooks.make.callAsync(compilation, err => {
         console.log('make完成');
         onCompiled();
@@ -74,6 +77,16 @@ class Compiler extends Tapable {
     };
     return params;
   }
-}
-
+}                                                                                  
+                                                                                                                                                                                                                                                                                              
 module.exports = Compiler;
+
+/**
+ * Compiler是单例的，不管编译多少次，Compiler都只有一个
+ * 
+ * - 第一次，源码改变之后，都会创建新的Compilation
+ * - ./src/index.js [Compilation开始编译入口文件，根据入口文件找到所有的依赖文件，封装成一个叫main的代码块chunk]
+ * - 根据这个chunk生成一个文件 [main.js 包括入口文件以及所有入口文件依赖模块]
+ * 
+ * chunk是一个对象
+ */
