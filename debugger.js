@@ -10,7 +10,7 @@ compiler.run((err, stats) => {
       entries: true,
       chunks: true,
       modules: true,
-      assets: true
+      assets: true,
     })
   )
 });
