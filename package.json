@@ -1,0 +1,13 @@
+{
+  "name": "hand-webpack",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "ISC",
+  "scripts": {
+    "test": ""
+  },
+  "devDependencies": {},
+  "dependencies": {
+    "tapable": "1.1.3"
+  }
+}
