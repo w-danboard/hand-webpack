@@ -1,6 +1,7 @@
 const { Tapable, AsyncSeriesHook, SyncBailHook, AsyncParallelHook, SyncHook } = require('tapable');
 const NormalModuleFactory = require('./NormalModuleFactory');
 const Compilation = require('./Compilation');
+const Stats = require('./Stats');
 // 编译器对象
 class Compiler extends Tapable {
   constructor (context) {
@@ -31,12 +32,13 @@ class Compiler extends Tapable {
     };
     const onCompiled = (err, compilation) => {
       console.log('onCompiled');
-      finalCallback(err, {
-        entries: [], // 显示所有的入口
-        chunks: [],  // 显示所有的代码块
-        module: [],  // 显示所有的模块 [数组]
-        assets: []   // 显示所有打包后的资源，也就是文件
-      });
+      finalCallback(err, new Stats());
+      // finalCallback(err, {
+      //   entries: [], // 显示所有的入口
+      //   chunks: [],  // 显示所有的代码块
+      //   module: [],  // 显示所有的模块 [数组]
+      //   assets: []   // 显示所有打包后的资源，也就是文件
+      // });
     }
     this.hooks.beforeRun.callAsync(this, err => {
       this.hooks.run.callAsync(this, err => {
@@ -54,7 +56,7 @@ class Compiler extends Tapable {
       // 触发make钩子的回调函数执行
       this.hooks.make.callAsync(compilation, err => {
         console.log('make完成');
-        onCompiled();
+        onCompiled(null, compilation);
       });
     })
   }

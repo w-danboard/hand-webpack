@@ -3,6 +3,7 @@ const { Tapable, SyncHook } = require('tapable');
 const NormalModuleFactory = require('./NormalModuleFactory');
 const normalModuleFactory = new NormalModuleFactory();
 
+// 所有模块共享一个Parser
 const Parser = require('./Parser');
 let parser = new Parser();
 class Compilation extends Tapable {
