@@ -33,9 +33,9 @@ class Compiler extends Tapable {
       console.log('onCompiled');
       finalCallback(err, {
         entries: [], // 显示所有的入口
-        chunks: [], // 显示所有的代码块
-        module: [], // 显示所有的模块 [数组]
-        assets: [] // 显示所有打包后的资源，也就是文件
+        chunks: [],  // 显示所有的代码块
+        module: [],  // 显示所有的模块 [数组]
+        assets: []   // 显示所有打包后的资源，也就是文件
       });
     }
     this.hooks.beforeRun.callAsync(this, err => {

@@ -6,7 +6,7 @@ class SingleEntryPlugin {
   }
 
   apply (compiler) {
-    // 监听make钩子
+    // 监听make钩子 (这边属于注册钩子)
     compiler.hooks.make.tapAsync('SingleEntryPlugin', (compilation, callback) => {
       const { context, entry, name} = this;
       // 从此入口开始编译，编译入口文件和它的依赖

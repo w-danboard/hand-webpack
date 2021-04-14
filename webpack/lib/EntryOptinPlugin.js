@@ -5,6 +5,9 @@ const itemToPlugin = (context, item, name) => {
   return new SingleEntryPlugin(context, item, name);
 }
 
+/**
+ * 它是一切的入口 
+ */
 class EntryOptinPlugin {
   apply (compiler) {
     /**
