@@ -45,7 +45,7 @@ class Compilation extends Tapable {
       name, // 入口名字 main
       context, // 根目录 // TODO
       rawRequest, // ./src/index.js
-      resource: path.posix.join(context, entry), // 入口的绝对路径
+      resource: path.posix.join(context, rawRequest), // 入口的绝对路径
       parser
     });
     this.entries.push(entryModule); // 给入口模块数组添加一个模块

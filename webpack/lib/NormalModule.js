@@ -1,3 +1,7 @@
+const path = require('path');
+const types = require('babel-types');
+const generate = require('babel-generator').default;
+const traverse = require('babel-traverse').default;
 class NormalModule {
   constructor ({ name, context, rawRequest, resource, parser }) {
     this.name = name;
@@ -25,8 +29,26 @@ class NormalModule {
    */
   build (compilation, callback) {
     this.doBuild(compilation, err => {
-      this._ast = this.parser.parser(this._source);
-      callback();
+      // 得到语法树
+      this._ast = this.parser.parse(this._source);
+      // 遍历语法树，找到里面的依赖进行收集依赖
+      traverse(this._ast, {
+        // 当遍历到CallExpression节点的时候，就会进入回调
+        CallExpression: (nodePath) => {
+          let node = nodePath.node; // 获取节点
+          if (node.callee.name === 'require') { // 如果方法名是require方法的话
+            let moduleName = node.arguments[0].value; // 模块的名称
+            // 获得了可能的扩展名
+            let extName = moduleName.split(path.posix.sep).pop().indexOf('.') == -1 ? '.js' : '';
+            // 获取依赖模块(./src/title.js)的绝对路径
+            let depResource = path.posix.join(path.posix.dirname(this.resource), moduleName + extName);
+            // 获取依赖的模块ID ./ + 从根目录触发到依赖模块的绝对路径的相对路径
+            let depModuleId = './' + path.posix.relative(this.context, depResource);
+            console.log('depModuleId', depModuleId)
+          }
+        }
+      });
+      // callback();
     })
   }
   
@@ -51,3 +73,12 @@ class NormalModule {
 }
 
 module.exports = NormalModule;
+
+/**
+ * 非常重要的问题
+ *  模块ID的问题
+ *  在webpack中，不管你是相对的本地模块，还是第三方模块
+ *  最后它的moduleId，全部都是一个相对于项目根目录的绝对路径
+ *  ./src/title.js
+ *  ./src/index.js
+ */

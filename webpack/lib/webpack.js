@@ -14,7 +14,7 @@ const webpack = (options, callback) => {
    *  第一步验验证配置文件是否合法 如果不合法报错
    *  第二步增加默认参数，因为webpack是零配置
    */
-  let compiler = new Compiler(options); // 创建一个Compiler的实例
+  let compiler = new Compiler(options.context); // 创建一个Compiler的实例
   compiler.options = options; // 给他赋予一个options属性
   new NodeEnvironmentPlugin().apply(compiler); // 让compiler可以读文件和写文件了
   // 挂载配置文件里提供的所有的plugins

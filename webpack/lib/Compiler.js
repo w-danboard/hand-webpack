@@ -32,7 +32,7 @@ class Compiler extends Tapable {
     };
     const onCompiled = (err, compilation) => {
       console.log('onCompiled');
-      finalCallback(err, new Stats());
+      finalCallback(err, new Stats(compilation));
       // finalCallback(err, {
       //   entries: [], // 显示所有的入口
       //   chunks: [],  // 显示所有的代码块
