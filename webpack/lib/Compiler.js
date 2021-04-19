@@ -78,9 +78,21 @@ class Compiler extends Tapable {
           let depModulePath = path.posix.join(dirName, moduleName);
           let extensions = this.options.resolve.extensions;
           depModulePath = tryExtensions(depModulePath, extensions, moduleName, dirName);
+          let depModuleId = './' + path.posix.relative(this.options.context, modulePath); // ./src/title.js
+          node.arguments = [types.stringLiteral(depModuleId)];
+          module.dependencies.add(depModulePath);
         }
       }
+    });
+
+    let { code } = generator(ast);
+    module._source = code; // 此模块的源代码
+    // 把当前的模块编译完成，会找到它的所有依赖，并递归的编译，添加到this.modules就可以了
+    module.dependencies.forEach(dependency => {
+      let depModule = this.buildModule(entryName, dependency);
+      this.modules.add(depModule);
     })
+    return module;
   }
 
   // 4. 调用Compiler对象的run方法开始执行编译工作 (run方法是开始编译的入口)
@@ -101,6 +113,7 @@ class Compiler extends Tapable {
     for (let entryName in entry) {
       let entryPath = toUnixPath(path.join(rootPath, entry[entryName]));
       let entryModule = this.buildModule(entryName, entryPath);
+      this.entries.add(entryModule);
     }
 
     // 开始真正的编译了
