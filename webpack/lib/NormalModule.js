@@ -1,15 +1,22 @@
+const path = require('path');
+const types = require('babel-types') // 此模块包含手动构建AST和检查AST节点类型的方法
+const genrate = require('babel-generator').default; // 可以把语法树变成代码
+const traverse = require('babel-traverse').default; // 可以遍历语法树
 class NormalModule {
-  constructor ({ name, context, rawRequest, resource, parser }) {
+  constructor ({ name, context, rawRequest, resource, parser, moduleId }) {
     this.name = name;
     this.context = context; // 跟目录
     this.rawRequest = rawRequest; // src/index.js 
     this.resource = resource; // 这是这个模块的绝对路径 [相当于context + resource]
     // 这是AST解析器，可以把源代码转成AST抽象语法树
     this.parser = parser;
+    this.moduleId = moduleId;
     // 此模块对应的源代码
     this._source; 
     // 此模块对应的AST抽象语法树
-    this._ast; 
+    this._ast;
+    // 当前模块依赖的模块信息
+    this.dependencies = [];
   }
 
   /**
@@ -25,8 +32,41 @@ class NormalModule {
    */
   build (compilation, callback) {
     this.doBuild(compilation, err => {
-      this._ast = this.parser.parser(this._source);
-      callback();
+      // 得到语法树
+      this._ast = this.parser.parse(this._source);
+      // 遍历语法树，找到里面的依赖，进行收集依赖
+      traverse(this._ast, {
+        // 当遍历到CallExpression节点的时候，就会进入回调函数
+        CallExpression: (nodePath) => {
+          let node = nodePath.node; // 模块节点
+          if (node.callee.name === 'require') { // 如果方法名是require的话
+            node.callee.name = '__webpack_require__'; // 把方法名从require改成__webpack_require__
+            let moduleName = node.arguments[0].value; // 模块的名称
+            // 暂时只支持js
+            let extName = moduleName.split(path.posix.sep).pop().indexOf('.') == -1 ? '.js' : '';
+            // 获取依赖模块(./src/title.js)的绝对路径
+            // posix统一使用linux里的杠
+            let depResource = path.posix.join(path.posix.dirname(this.resource), moduleName + extName);
+            // 依赖的模块ID ./ + 从根目录触发到依赖模块的绝对路径的相对路径
+            let depModuleId = './' + path.posix.relative(this.context, depResource);
+            // console.log(depModuleId, '====>hahah')
+            // 把require模块路径从./title.js变成了 ./src/title/js
+            // console.log(node.arguments, [types.stringLiteral(depModuleId)])
+            node.arguments = [types.stringLiteral(depModuleId)];
+            this.dependencies.push({
+              name: this.name, // main
+              context: this.contextm, // 根目录
+              rawRequest: this.rawRequest, // 模块的相对路径 原始路径
+              moduleId: depModuleId, // 模块ID 它是一个相对于根目录的相对路径，以./开头
+              resource: depResource // 依赖模块的绝对路径
+            })
+          }
+        }
+      })
+      // 把转换后的语法树重新生成源代码
+      let { code } = genrate(this._ast);
+      this._source = code;
+      callback(); // callback是Compliation中的buildModule？？
     })
   }
   
@@ -51,3 +91,15 @@ class NormalModule {
 }
 
 module.exports = NormalModule;
+
+/**
+ * 非常重要的问题
+ *  模块ID的问题
+ *  不管你是相对的本地模块，还是第三方模块(比如jQuery)
+ *  最后它的moduleId全部都是一个相对于项目根目录的绝对路径
+ *  ./src/index.js
+ *  ./src/title.js
+ *  ./node_modules/xxx.js
+ * 
+ *  路径分隔符一定是linux里的 /，而非windows里的反斜杠
+ */
