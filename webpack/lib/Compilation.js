@@ -1,4 +1,5 @@
 const path = require('path');
+let async = require('neo-async');
 const { Tapable, SyncHook } = require('tapable');
 const NormalModuleFactory = require('./NormalModuleFactory');
 const normalModuleFactory = new NormalModuleFactory();
@@ -20,6 +21,7 @@ class Compilation extends Tapable {
     this.outputFileSystem = compiler.outputFileSystem; // 写入文件的模块fs
     this.entries = []; // 入口的数组， 这里放着所有的入口模块
     this.modules = []; // 模块的数组， 这里放着所有的模块
+    this._modules = {}; // key模块ID，值是模块的模块对象
     this.hooks = {
       // 当你成功构建完成一个模块后就会触发此钩子
       succeedModule: new SyncHook(['module'])
@@ -40,21 +42,64 @@ class Compilation extends Tapable {
   }
 
   _addModuleChain (context, rawRequest, name, callback) {
-    // 通过模块工厂 创建一个模块
-    let entryModule = normalModuleFactory.create({
-      name, // 入口名字 main
-      context, // 根目录 // TODO
-      rawRequest, // ./src/index.js
-      resource: path.posix.join(context, rawRequest), // 入口的绝对路径
+    this.createModule({
+      name,
+      context,
+      rawRequest,
+      resource: path.posix.join(context, rawRequest),
       parser
-    });
-    this.entries.push(entryModule); // 给入口模块数组添加一个模块
-    this.modules.push(entryModule); // 给普通模块数组添加一个模块
-    const afterBuild = (err) => {
-      // TODO 编译依赖的模块
-      return callback(null, module)
+    }, entryModule => {
+      this.entries.push(entryModule)
+    }, callback);
+  }
+
+  /**
+   * 创建并编译一个模块  源码里写了两边，我们为了方便就写一遍
+   * @param {*} data 要编译的模块信息
+   * @param {*} addEntry 可选的增加入口的方法，如果这个模块是入口模块就添加到entries里，如果不是就不做了
+   * @param {*} callback 编译完成之后可以调用callback回调
+   */
+  createModule (data, addEntry, callback) { 
+    // 通过模块工厂 创建一个模块
+    let module = normalModuleFactory.create(data);
+    module.moduleId = './' + path.posix.relative(this.context, module.resource); // ./src/index.js
+    this._modules[module.moduleId] = module; // 保存一下对应信息
+    addEntry && addEntry(module); // 如果是入口模块。则添加到入口里去
+    // this.entries.push(entryModule); // 给入口模块数组添加一个模块
+    this.modules.push(module); // 给普通模块数组添加一个模块
+    const afterBuild = (err, module) => {
+      // 编译依赖的模块, 如果大于0说明有依赖
+      if (module.dependencies.length > 0) {
+        this.processModuleDependencies((module, err) => {
+          callback(err, module);
+        })
+      } else {
+          callback(null, module)
+      }
     }
-    this.buildModule(entryModule, afterBuild);
+    this.buildModule(module, afterBuild);
+  }
+
+  /**
+   * 处理编译模块依赖
+   * @param {*} module  ./src/index.js
+   * @param {*} callback 
+   */
+  processModuleDependencies (module, callback) {
+    // 1. 获取当前模块的依赖模块
+    let dependencies = module.dependencies;
+    // 遍历依赖模块，全部开始编译，当所有的依赖模块全部编译完成之后，才调用这个callback
+    async.forEach(dependencies, (dependency, done) => {
+       let { name, context, rawRequest, resource, moduleId } = dependency;
+       this.createModule({
+          name,
+          context,
+          rawRequest,
+          parser,
+          resource,
+          moduleId
+        }, null, done); // 不是入口模块，传null就可以了
+    }, callback)
   }
 
   /**
@@ -75,7 +120,7 @@ class Compilation extends Tapable {
     module.build(this, err => {
       // 走到这里意味着一个module模块已经编译完成了
       this.hooks.succeedModule.call(module);
-      afterBuild(err)
+      afterBuild(err, module)
     })
   }
 }
