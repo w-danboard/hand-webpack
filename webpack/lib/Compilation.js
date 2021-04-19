@@ -24,7 +24,7 @@ class Compilation extends Tapable {
     this._modules = {}; // key模块ID，值是模块的模块对象
     this.hooks = {
       // 当你成功构建完成一个模块后就会触发此钩子
-      succeedModule: new SyncHook(['module'])
+      succeedModule: new SyncHook(['module']) 
     }
   }
 
@@ -70,7 +70,7 @@ class Compilation extends Tapable {
     const afterBuild = (err, module) => {
       // 编译依赖的模块, 如果大于0说明有依赖
       if (module.dependencies.length > 0) {
-        this.processModuleDependencies((module, err) => {
+        this.processModuleDependencies(module, err => {
           callback(err, module);
         })
       } else {
