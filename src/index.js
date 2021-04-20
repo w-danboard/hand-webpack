@@ -1,2 +1,3 @@
-let title = require('./title');
-console.log(title);
+import(/* webpackChunkName: 'title' */'./title').then(result => {
+  console.log(result.default);
+});

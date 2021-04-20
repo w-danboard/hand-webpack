@@ -61,7 +61,7 @@ class Compiler extends Tapable {
         let stats = new Stats(compilation);
         // 再触发done这个钩子执行
         this.hooks.done.callAsync(stats, err => {
-          callback(stats);
+          callback(err, stats);
         });
       });
     }
