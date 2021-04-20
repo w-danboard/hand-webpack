@@ -2,6 +2,8 @@ const { Tapable, AsyncSeriesHook, SyncBailHook, AsyncParallelHook, SyncHook } = 
 const NormalModuleFactory = require('./NormalModuleFactory');
 const Compilation = require('./Compilation');
 const Stats = require('./Stats');
+const mkdirP = require('mkdirP'); // 递归创建文件夹
+const path = require('path');
 // 编译器对象
 class Compiler extends Tapable {
   constructor (context) {
@@ -19,26 +21,49 @@ class Compiler extends Tapable {
       make: new AsyncParallelHook(['complation']), // make构建 // TODO
       thisCompilation: new SyncHook(['compilation', 'params']), // 开始一次新的编译
       compilation: new SyncHook(['compilation', 'params']), // 创建完成一个新的compilation
-      afterCompile: new AsyncSeriesHook(['compilation']) // 编译完成
+      afterCompile: new AsyncSeriesHook(['compilation']), // 编译完成
+      emit: new AsyncSeriesHook(['compilation']), // 发射或者说写入
+      done: new AsyncSeriesHook(['stats']) // 所有的编译全部都完成
     }
+  }
+
+  emitAssets (compilation, callback) {
+    // finalCallback(err, new Stats(compilation));
+    // 把chunk编程文件，写入硬盘
+    const emitFiles = (err) => {
+      const assets = compilation.assets;
+      let outputPath = compilation.options.output.path; // dist
+      for (let file in assets) {
+        let source = assets[file];
+        // 是输出文件的绝对路径
+        let targetPath = path.posix.join(outputPath, file);
+        this.outputFileSystem.writeFileSync(targetPath, source, 'utf8');
+      }
+      callback();
+    };
+    // 先触发emit的回调，在写插件的时候，emit这个钩子用的很多，因为它是我们修改输入内容的最后机会
+    this.hooks.emit.callAsync(compilation, err => {
+      // 先创建输出目录dist，在写入文件
+      mkdirP(this.options.output.path).then(made => {
+        console.log('made ===>')
+        emitFiles()
+      });
+    })
   }
 
   // run方法是开始编译的入口
   run (callback) {
     console.log('Compiler run');
-    // 编译完成最终的回调函数
-    const finalCallback = (err, stats) => {
-      callback(err, stats)
-    };
     const onCompiled = (err, compilation) => {
-      console.log('onCompiled');
-      finalCallback(err, new Stats(compilation));
-      // finalCallback(err, {
-      //   entries: [], // 显示所有的入口
-      //   chunks: [],  // 显示所有的代码块
-      //   module: [],  // 显示所有的模块 [数组]
-      //   assets: []   // 显示所有打包后的资源，也就是文件
-      // });
+      // console.log('onCompiled');
+      this.emitAssets(compilation, err => {
+        // 先收集编译信息 chunks entries moduels files
+        let stats = new Stats(compilation);
+        // 再触发done这个钩子执行
+        this.hooks.done.callAsync(stats, err => {
+          callback(stats);
+        });
+      });
     }
     this.hooks.beforeRun.callAsync(this, err => {
       this.hooks.run.callAsync(this, err => {
@@ -55,8 +80,15 @@ class Compiler extends Tapable {
       const compilation = this.newCompilation(params);
       // 触发make钩子的回调函数执行
       this.hooks.make.callAsync(compilation, err => {
-        console.log('make完成');
-        onCompiled(null, compilation);
+        // console.log('make完成');
+        // 封装代码块之后编译就完成了
+        compilation.seal(err => {
+          // 触发编译完成的钩子
+          this.hooks.afterCompile.callAsync(compilation, err => {
+            onCompiled(err, compilation);
+          })
+        });
+        // onCompiled(null, compilation);
       });
     })
   }

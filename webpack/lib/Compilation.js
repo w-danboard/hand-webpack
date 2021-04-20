@@ -3,6 +3,11 @@ let async = require('neo-async');
 const { Tapable, SyncHook } = require('tapable');
 const NormalModuleFactory = require('./NormalModuleFactory');
 const normalModuleFactory = new NormalModuleFactory();
+const Chunk = require('./Chunk');
+const ejs = require('ejs');
+const fs = require('fs');
+const mainTemplate = fs.readFileSync(path.join(__dirname, 'templates', 'main.ejs'), 'utf8');
+const mainRender = ejs.compile(mainTemplate); // 模板经过编译会返回一个函数，向里面传参即可
 
 // 所有模块共享一个Parser
 const Parser = require('./Parser');
@@ -21,10 +26,15 @@ class Compilation extends Tapable {
     this.outputFileSystem = compiler.outputFileSystem; // 写入文件的模块fs
     this.entries = []; // 入口的数组， 这里放着所有的入口模块
     this.modules = []; // 模块的数组， 这里放着所有的模块
-    this._modules = {}; // key模块ID，值是模块的模块对象
+    this.chunks = []; // 这里放着所有的代码块
+    this.files = []; // 这里放着本次编译所有产出的文件名
+    this.assets = {}; // 存放着生成资源 key是文件名 值是文件的内容
     this.hooks = {
       // 当你成功构建完成一个模块后就会触发此钩子
-      succeedModule: new SyncHook(['module']) 
+      succeedModule: new SyncHook(['module']),
+      seal: new SyncHook(),
+      beforeChunks: new SyncHook(),
+      afterChunks: new SyncHook()
     }
   }
 
@@ -46,8 +56,8 @@ class Compilation extends Tapable {
       name,
       context,
       rawRequest,
-      resource: path.posix.join(context, rawRequest),
-      parser
+      parser,
+      resource: path.posix.join(context, rawRequest)
     }, entryModule => {
       this.entries.push(entryModule)
     }, callback);
@@ -63,7 +73,6 @@ class Compilation extends Tapable {
     // 通过模块工厂 创建一个模块
     let module = normalModuleFactory.create(data);
     module.moduleId = './' + path.posix.relative(this.context, module.resource); // ./src/index.js
-    this._modules[module.moduleId] = module; // 保存一下对应信息
     addEntry && addEntry(module); // 如果是入口模块。则添加到入口里去
     // this.entries.push(entryModule); // 给入口模块数组添加一个模块
     this.modules.push(module); // 给普通模块数组添加一个模块
@@ -122,6 +131,45 @@ class Compilation extends Tapable {
       this.hooks.succeedModule.call(module);
       afterBuild(err, module)
     })
+  }
+
+  /**
+   * 把模块封装成代码块Chunk
+   * @param {*} callback 
+   */
+  seal (callback) {
+    this.hooks.seal.call();
+    this.hooks.beforeChunks.call(); // 开始准备生成代码块
+    // 一般来说，默认情况下，每一个入口会生成一个代码块
+    for (const entryModule of this.entries) {
+      const chunk = new Chunk(entryModule); // 根据入口模块得到一个代码块
+      this.chunks.push(chunk);
+      // 对所有的模块进行过滤，找出来哪些名称跟这个chunk一样的模块，然后组成一个数据赋给chunk.modules
+      chunk.modules = this.modules.filter(module => module.name === chunk.name);
+    }
+    this.hooks.afterChunks.call(this.chunks);
+    // 生成代码块之后，要生成代码块对应的资源
+    this.createChunkAssets();
+    callback();
+  }
+
+  createChunkAssets () {
+    for (let i = 0; i < this.chunks.length; i++) {
+      const chunk = this.chunks[i];
+      chunk.files = [];
+      const file = chunk.name + '.js'; // 只是拿到了文件名
+      chunk.files.push(file);
+      let source = mainRender({
+        entryModuleId: chunk.entryModule.moduleId, // ./src.index.js
+        modules: chunk.modules // 此代码块对应的模块数组 [{moduleId: './src/index.js'}, {moduleId: './src/title.js'}]
+      });
+      this.emitAssets(file, source);
+    }
+  }
+
+  emitAssets (file, source) {
+    this.assets[file] = source;
+    this.files.push(file);
   }
 }
 

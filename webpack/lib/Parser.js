@@ -12,6 +12,10 @@ class Parser extends Tapable {
       plugins: ['dynamicImport'] // 额外一个插件，支持import('./title.js');
     });
   }
+
+  traverse () {
+    
+  }
 }
 
 module.exports = Parser;

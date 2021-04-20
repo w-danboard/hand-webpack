@@ -10,7 +10,7 @@ class NormalModule {
     this.resource = resource; // 这是这个模块的绝对路径 [相当于context + resource]
     // 这是AST解析器，可以把源代码转成AST抽象语法树
     this.parser = parser;
-    this.moduleId = moduleId;
+    this.moduleId = moduleId || ('./' + path.posix.relative(context, resource));
     // 此模块对应的源代码
     this._source; 
     // 此模块对应的AST抽象语法树
@@ -77,6 +77,7 @@ class NormalModule {
   doBuild (compilation, callback) {
     this.getSource(compilation, (err, source) => {
       // 把最原始的代码存放到当前模块的_source属性上
+      // 我们的loader处理应该放在这个地方！
       this._source = source; // TODO
       callback();
     });

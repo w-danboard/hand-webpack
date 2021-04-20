@@ -1,8 +1,9 @@
 class Stats {
   constructor (compilation) {
-    console.log('1111')
-    this.entries = compilation.entries;
-    this.moudules = compilation.modules;
+    this.entries = compilation.entries; // 入口
+    this.moudules = compilation.modules; // 模块
+    this.chunks = compilation.chunks; // 代码块
+    this.files = compilation.files; // 文件名数组
   }
   toJson () {
     return this;

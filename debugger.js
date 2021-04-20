@@ -3,14 +3,8 @@ const webpackOptions = require('./webpack.config');
 
 const compiler = webpack(webpackOptions);
 
-compiler.run((err, stats) => {
-  console.log(err)
+compiler.run((stats) => {
   console.log(
-    stats.toJson({
-      entries: true,
-      chunks: true,
-      modules: true,
-      assets: true
-    })
+    stats.toJson()
   )
 });
