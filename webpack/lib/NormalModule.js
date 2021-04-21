@@ -48,12 +48,26 @@ class NormalModule {
             // 1.把方法名用require改成了__webpack_require__
             node.callee.name = '__webpack_require__';
             let moduleName = node.arguments[0].value; // 1.模块的名称
-            // 2.获得了可能的扩展名
-            let extName = moduleName.split(path.posix.sep).pop().indexOf('.') == -1 ? '.js' : '';
-            // 3.获取依赖模块(./src/title.js)的绝对路径
-            let depResource = path.posix.join(path.posix.dirname(this.resource), moduleName + extName);
+            // 依赖的绝对路径
+            let depResource;
+            // 如果说模块的名字是以.开头，说明是一个本地模块，或者说用户自动定义模块
+            if (moduleName.startsWith('.')) {
+              // 2.获得了可能的扩展名
+              let extName = moduleName.split(path.posix.sep).pop().indexOf('.') == -1 ? '.js' : '';
+              // 3.获取依赖模块(./src/title.js)的绝对路径
+              depResource = path.posix.join(path.posix.dirname(this.resource), moduleName + extName);
+            } else { // 否则是一个第三方模块，也就是放在node_modules里面的
+              // /Users/wanglin/Desktop/webpack-not-del/hand-webpack/node_modules/isarray/index.js
+              depResource = require.resolve(path.posix.join(this.context, 'node_modules', moduleName));
+              depResource = depResource.replace(/\\/g, '/'); // 把window里的\转成/
+            }
             // 4.获取依赖的模块ID ./ + 从根目录触发到依赖模块的绝对路径的相对路径
-            let depModuleId = './' + path.posix.relative(this.context, depResource);
+            // let depModuleId = './' + path.posix.relative(this.context, depResource);
+
+            // depResource = /Users/wanglin/Desktop/webpack-not-del/hand-webpack/node_modules/isarray/index.js
+            // this.context = /Users/wanglin/Desktop/webpack-not-del/hand-webpack
+            // depModuleId = ./node_modules/isarray/index.js
+            let depModuleId = '.' + depResource.slice(this.context.length);
             console.log('depModuleId', depModuleId)
             // 把require模块路径从./title.js变成了./src/title.js
             node.arguments = [ types.stringLiteral(depModuleId) ];
