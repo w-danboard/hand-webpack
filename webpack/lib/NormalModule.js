@@ -2,8 +2,9 @@ const path = require('path');
 const types = require('babel-types');
 const generate = require('babel-generator').default;
 const traverse = require('babel-traverse').default;
+const async = require('neo-async');
 class NormalModule {
-  constructor ({ name, context, rawRequest, resource, parser, moduleId }) {
+  constructor ({ name, context, rawRequest, resource, parser, moduleId, async }) {
     this.name = name;
     this.context = context; // 跟目录
     this.rawRequest = rawRequest; // src/index.js 
@@ -17,6 +18,10 @@ class NormalModule {
     this._ast;
     // 当前模块依赖的模块信息
     this.dependencies = [];
+    // 当前模块依赖那些异步模块  import(哪些模块)
+    this.blocks = [];
+    // 表示当前的模块是属于一个异步代码块，还是一个同步代码块
+    this.async = async;
   }
 
   /**
@@ -40,14 +45,14 @@ class NormalModule {
         CallExpression: (nodePath) => {
           let node = nodePath.node; // 获取节点
           if (node.callee.name === 'require') { // 如果方法名是require方法的话
-            // 把方法名用require改成了__webpack_require__
+            // 1.把方法名用require改成了__webpack_require__
             node.callee.name = '__webpack_require__';
-            let moduleName = node.arguments[0].value; // 模块的名称
-            // 获得了可能的扩展名
+            let moduleName = node.arguments[0].value; // 1.模块的名称
+            // 2.获得了可能的扩展名
             let extName = moduleName.split(path.posix.sep).pop().indexOf('.') == -1 ? '.js' : '';
-            // 获取依赖模块(./src/title.js)的绝对路径
+            // 3.获取依赖模块(./src/title.js)的绝对路径
             let depResource = path.posix.join(path.posix.dirname(this.resource), moduleName + extName);
-            // 获取依赖的模块ID ./ + 从根目录触发到依赖模块的绝对路径的相对路径
+            // 4.获取依赖的模块ID ./ + 从根目录触发到依赖模块的绝对路径的相对路径
             let depModuleId = './' + path.posix.relative(this.context, depResource);
             console.log('depModuleId', depModuleId)
             // 把require模块路径从./title.js变成了./src/title.js
@@ -59,13 +64,43 @@ class NormalModule {
               moduleId: depModuleId, // 模块ID 它是一个相对于根目录的相对路径
               resource: depResource // 依赖模块的绝对路径
             });
+            // 判断这个节点CallExpression它的callee是不是import类型
+          } else if (types.isImport(node.callee)) {
+            let moduleName = node.arguments[0].value; // 1.模块的名称 ./title.js
+            // 2.获取可能的扩展名
+            let extName = moduleName.split(path.posix.sep).pop().indexOf('.') == - 1 ? '.js' : '';
+            // 3.获取依赖的模块的绝对路径
+            let depResource = path.posix.join(path.posix.dirname(this.resource), moduleName + extName);
+            // 4.依赖的模块ID ./ +  从根目录触发到依赖模块的绝对路径的相对路径 ./src/title.js
+            let depModuleId = './' + path.posix.relative(this.context, depResource);
+            // webpackChunkName: 'title'
+            let chunkName = '0';
+            if (Array.isArray(node.arguments[0].leadingComments) &&
+            node.arguments[0].leadingComments.length > 0) {
+              let leadingComments = node.arguments[0].leadingComments[0].value;
+              let regexp = /webpackChunkName:\s*['"]([^'"]+)['"]/;
+              chunkName = leadingComments.match(regexp)[1];
+            }
+            nodePath.replaceWithSourceString(`__webpack_require__.e("${chunkName}").then(__webpack_require__.t.bind(null,  "${depModuleId}", 7))`);
+            // 异步代码块的依赖
+            this.blocks.push({
+              context: this.context,
+              entry: depModuleId,
+              name: chunkName,
+              async: true // 异步的代码，异步调用的
+            });
           }
         }
       });
       // 把转换后的语法树重新生成源代码
       let { code } = generate(this._ast);
       this._source = code;
-      callback();
+      // 循环构建每一个异步代码块，都构建完成后才会代表当前的模块编译完成
+      async.forEach(this.blocks, (block, done) => {
+        let { context, entry, name, async } = block;
+        compilation._addModuleChain(context, entry, name, async, done);
+      }, callback);
+      // callback();
     })
   }
   
@@ -99,4 +134,10 @@ module.exports = NormalModule;
  *  最后它的moduleId，全部都是一个相对于项目根目录的绝对路径
  *  ./src/title.js
  *  ./src/index.js
+ */
+
+/**
+ * 如何处理懒加载
+ * 1. 先把代码转成AST语法树
+ * 2. 找出动态import节点
  */

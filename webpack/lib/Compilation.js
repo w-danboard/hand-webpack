@@ -6,8 +6,10 @@ const normalModuleFactory = new NormalModuleFactory();
 const Chunk = require('./Chunk');
 const ejs = require('ejs');
 const fs = require('fs');
-const mainTemplate = fs.readFileSync(path.join(__dirname, 'templates', 'main.ejs'), 'utf8');
+const mainTemplate = fs.readFileSync(path.join(__dirname, 'templates', 'asyncMain.ejs'), 'utf8');
 const mainRender = ejs.compile(mainTemplate); // 模板经过编译会返回一个函数，向里面传参即可
+const chunkTemplate = fs.readFileSync(path.join(__dirname, 'templates', 'chunk.ejs'), 'utf8');
+const chunkRender = ejs.compile(chunkTemplate); // 模板经过编译会返回一个函数，向里面传参即可
 
 // 所有模块共享一个Parser
 const Parser = require('./Parser');
@@ -46,17 +48,18 @@ class Compilation extends Tapable {
    * @param {*} callback 编译完成的回调
    */
   addEntry (context, entry, name, finalCallback) {
-    this._addModuleChain(context, entry, name, (err, module) => {
+    this._addModuleChain(context, entry, name, false, (err, module) => {
       finalCallback(err, module);
     });
   }
 
-  _addModuleChain (context, rawRequest, name, callback) {
+  _addModuleChain (context, rawRequest, name, async, callback) {
     this.createModule({
       name,
       context,
       rawRequest,
       parser,
+      async,
       resource: path.posix.join(context, rawRequest)
     }, entryModule => {
       this.entries.push(entryModule)
@@ -159,10 +162,20 @@ class Compilation extends Tapable {
       chunk.files = [];
       const file = chunk.name + '.js'; // 只是拿到了文件名
       chunk.files.push(file);
-      let source = mainRender({
-        entryModuleId: chunk.entryModule.moduleId, // ./src.index.js
-        modules: chunk.modules // 此代码块对应的模块数组 [{moduleId: './src/index.js'}, {moduleId: './src/title.js'}]
-      });
+      let source;
+      if (chunk.async) {
+        // 异步代块
+        source = chunkRender({
+          chunkName: chunk.name, // ./src.index.js
+          modules: chunk.modules // 此代码块对应的模块数组 [{moduleId: './src/index.js'}, {moduleId: './src/title.js'}]
+        });
+      } else {
+        // 同步代码块
+        source = mainRender({
+          entryModuleId: chunk.entryModule.moduleId, // ./src.index.js
+          modules: chunk.modules // 此代码块对应的模块数组 [{moduleId: './src/index.js'}, {moduleId: './src/title.js'}]
+        });
+      }
       this.emitAssets(file, source);
     }
   }
