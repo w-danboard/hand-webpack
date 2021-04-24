@@ -1,1 +1,1 @@
-module.exports = 'title';
+exports.wl = {wl: 'aaa'}
