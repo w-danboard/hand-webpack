@@ -1,4 +1,2 @@
-module.exports = {
-  name: 'title_name',
-  age: 'title_age'
-}
+exports.name = 'title_name';
+exports.age = 'title_age';
