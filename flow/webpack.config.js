@@ -1,41 +1,16 @@
-const path = require('path'); // 处理路径的
-const test = require('./test');
-
-// 自动生成HTML文件的
-const HtmlWebpackPlugin = require('html-webpack-plugin');
+const path = require('path');
 
 module.exports = {
-  mode: 'development', // development不压缩代码 production会进行压缩
-  devtool: 'none', // 不需开发的source-map文件
-  entry: './src/index.js', // 入口模块
+  context: process.cwd(), // 当前工作目录
+  mode: 'development',
+  devtool: false,
+  entry: './src/index.js',
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: '[name].js'
+    filename: '[name].[hash].[chunkHash].js',
+    publicPath: '/' // 公开访问路径
   },
-  // module: {
-  //   rules: [
-  //     {
-  //       test: /\.(png|jpg|gif)$/,
-  //       use: [
-  //         {
-  //           loader: 'file-loader',
-  //           options: {
-  //             name: '[name].[ext]',
-  //             outputPath: './img'
-  //           }
-  //         }
-  //       ]
-  //     }
-  //   ]
-  // },
   plugins: [
-    new HtmlWebpackPlugin({
-      template: './src/index.html'
-    }),
-    // new test({
-    //   staticDir: path.join(__dirname, 'dist/img'),
-    //   fileName: '2.png',
-    //   target: path.resolve(__dirname, 'dist')
-    // })
+    
   ]
 }

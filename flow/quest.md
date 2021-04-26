@@ -113,3 +113,20 @@
 
 - 模块：JS文件 CSS文件 图片
 - 相互依赖的模块会合并成一个代码块
+
+---
+
+### webpack 编译流程
+
+-  compiler相当于一个大工厂
+- 根据entry配置找到所有入口，从入口模块出发，调用loader进行转义，
+
+`基本概念`
+1. module
+2. chunk
+3. asset // 每个代码块会对应一个asset 每个asset会生成一个file
+4. file
+
+`内部`
+- Compiler 代表整个webpack对象
+- Compilation 编译对象 每次新的编译生成新的compilation 里面会包含 modules chunks assets files
