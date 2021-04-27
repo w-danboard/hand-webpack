@@ -1,4 +1,4 @@
-let EntryOptionPlugin = require('./EntryOptionPlugin');
+const EntryOptionPlugin = require('./EntryOptionPlugin');
 
 class WebpackOptionsApply {
   process (options, compiler) {
